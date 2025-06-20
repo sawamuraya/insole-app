@@ -4,7 +4,8 @@ import numpy as np
 from PIL import Image
 from fpdf import FPDF
 import base64
-import os
+import tempfile
+from uuid import uuid4
 
 # アーチ分類関数
 def classify_arch_by_image(image):
@@ -29,7 +30,7 @@ def classify_arch_by_image(image):
     else:
         return "Normal"
 
-# インソール番号
+# インソールパターンテーブル
 pattern_table = {
     ("Flat", "O脚"): 1, ("Flat", "X脚"): 2, ("Flat", "正常"): 3,
     ("High", "O脚"): 4, ("High", "X脚"): 5, ("High", "正常"): 6,
@@ -37,7 +38,7 @@ pattern_table = {
     ("Normal", "O脚"): 10, ("Normal", "X脚"): 11, ("Normal", "正常"): 12,
 }
 
-# 簡略化説明文（150文字程度）
+# 説明文（簡略版）
 arch_explains = {
     "Flat": "土踏まずが低く衝撃吸収が弱いため、疲れやすさや足・膝・腰への負担が増します。サポート力のあるインソールでの補正が効果的です。",
     "High": "土踏まずが高く足裏の接地が少ないため、衝撃が集中しやすく痛みやバランス不良の原因になります。クッション性が重要です。",
@@ -67,11 +68,11 @@ def create_pdf(image_path, arch_type, leg_shape, insole_number):
     if image_path:
         pdf.image(image_path, x=10, y=pdf.get_y(), w=100)
 
-    output_path = "insole_report.pdf"
+    output_path = f"insole_report_{uuid4().hex}.pdf"
     pdf.output(output_path)
     return output_path
 
-# Streamlit UI
+# Streamlitアプリ本体
 def main():
     st.title("🦶 インソール提案＆PDF出力アプリ")
 
@@ -80,9 +81,13 @@ def main():
 
     uploaded_file = st.file_uploader("🖼 足圧画像をアップロード", type=["png", "jpg", "jpeg"])
     if uploaded_file:
-        image = Image.open(uploaded_file)
-        image_path = uploaded_file.name
-        image.save(image_path)
+        image = Image.open(uploaded_file).convert("RGB")
+
+        # 一時保存
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
+            image.save(tmp_file.name)
+            image_path = tmp_file.name
+
         image_cv = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
         st.image(image, caption="アップロード画像", use_column_width=True)
 
@@ -105,3 +110,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

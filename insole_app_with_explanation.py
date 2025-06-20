@@ -57,7 +57,7 @@ def create_pdf(image_path, arch_type, leg_shape, insole_number):
     pdf = FPDF()
     pdf.add_page()
     # フォント登録（初回のみ必要）
-    font_path = "fonts/NotoSansCJKjp-Regular.ttf"  # リポジトリ内のパス
+    font_path = "NotoSansJP-VariableFont_wght.ttf"  # リポジトリ内のパス
     pdf.add_font("Noto", "", font_path, uni=True)
     pdf.set_font("Noto", size=12)
 

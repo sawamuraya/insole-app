@@ -56,7 +56,10 @@ leg_explains = {
 def create_pdf(image_path, arch_type, leg_shape, insole_number):
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial", size=12)
+    # フォント登録（初回のみ必要）
+    font_path = "fonts/NotoSansCJKjp-Regular.ttf"  # リポジトリ内のパス
+    pdf.add_font("Noto", "", font_path, uni=True)
+    pdf.set_font("Noto", size=12)
 
     pdf.cell(0, 10, "インソール提案レポート", ln=True)
     pdf.cell(0, 10, f"アーチタイプ: {arch_type}", ln=True)
@@ -64,7 +67,7 @@ def create_pdf(image_path, arch_type, leg_shape, insole_number):
     pdf.cell(0, 10, f"脚の形状: {leg_shape}", ln=True)
     pdf.multi_cell(0, 10, f"説明: {leg_explains.get(leg_shape, '')}")
     pdf.cell(0, 10, f"推奨インソール番号: {insole_number}", ln=True)
-    
+
     if image_path:
         pdf.image(image_path, x=10, y=pdf.get_y(), w=100)
 

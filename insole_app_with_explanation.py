@@ -2,14 +2,15 @@ import streamlit as st
 import cv2
 import numpy as np
 from PIL import Image
-...
+from fpdf import FPDF
+import base64
+import os
 
-# アーチ分類ルール（色面積比ベース）
+# アーチ分類関数
 def classify_arch_by_image(image):
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     red_mask = cv2.inRange(hsv, (0, 100, 100), (10, 255, 255)) | cv2.inRange(hsv, (160, 100, 100), (179, 255, 255))
     yellow_mask = cv2.inRange(hsv, (20, 100, 100), (35, 255, 255))
-
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     blurred = cv2.medianBlur(gray, 5)
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
@@ -28,74 +29,79 @@ def classify_arch_by_image(image):
     else:
         return "Normal"
 
-# インソール提案マッピング
+# インソール番号
 pattern_table = {
-    ("Flat", "O脚"): 1,
-    ("Flat", "X脚"): 2,
-    ("Flat", "正常"): 3,
-    ("High", "O脚"): 4,
-    ("High", "X脚"): 5,
-    ("High", "正常"): 6,
-    ("外反母趾", "O脚"): 7,
-    ("外反母趾", "X脚"): 8,
-    ("外反母趾", "正常"): 9,
-    ("Normal", "O脚"): 10,
-    ("Normal", "X脚"): 11,
-    ("Normal", "正常"): 12,
+    ("Flat", "O脚"): 1, ("Flat", "X脚"): 2, ("Flat", "正常"): 3,
+    ("High", "O脚"): 4, ("High", "X脚"): 5, ("High", "正常"): 6,
+    ("外反母趾", "O脚"): 7, ("外反母趾", "X脚"): 8, ("外反母趾", "正常"): 9,
+    ("Normal", "O脚"): 10, ("Normal", "X脚"): 11, ("Normal", "正常"): 12,
 }
 
-# 説明文（簡略化）
+# 簡略化説明文（150文字程度）
 arch_explains = {
-    "Flat": "土踏まずが低く衝撃を吸収しにくいため、疲れやすさや痛みが出やすくなります。",
-    "High": "土踏まずが高く接地面が少ないため、足裏に圧力が集中しやすくなります。",
-    "Normal": "土踏まずがバランスよく形成された理想的な足型です。",
-    "外反母趾": "親指の付け根が突出しており、痛みや変形のリスクがあります。"
+    "Flat": "土踏まずが低く衝撃吸収が弱いため、疲れやすさや足・膝・腰への負担が増します。サポート力のあるインソールでの補正が効果的です。",
+    "High": "土踏まずが高く足裏の接地が少ないため、衝撃が集中しやすく痛みやバランス不良の原因になります。クッション性が重要です。",
+    "Normal": "バランスの取れた足型で衝撃吸収に優れていますが、加齢や姿勢の乱れで崩れることも。定期的なチェックと予防が大切です。",
+    "外反母趾": "親指が外側に曲がる症状で、痛みや変形を伴いやすく靴選びが重要です。初期対応やインソールでの補正が進行防止につながります。"
 }
 
 leg_explains = {
-    "O脚": "膝が外側に開き、膝や足首に負担がかかりやすい状態です。",
-    "X脚": "膝が内側に寄り、関節に歪みが生じやすい状態です。",
-    "正常": "脚のバランスが良く、関節への負担も少ない理想的な状態です。"
+    "O脚": "膝が外側に開いて湾曲した状態で、膝・股関節への負担が大きくなります。歩き方や筋力バランスの見直しが予防につながります。",
+    "X脚": "膝が内側に寄り足首が離れた状態で、関節に負担がかかりやすくなります。姿勢改善や筋力強化での予防が効果的です。",
+    "正常": "脚全体のバランスが取れており、関節への負担が少ない理想的な状態です。姿勢と歩き方を維持し、継続的なケアが大切です。"
 }
 
-# Streamlitアプリ本体
+# PDF生成
+def create_pdf(image_path, arch_type, leg_shape, insole_number):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+
+    pdf.cell(0, 10, "インソール提案レポート", ln=True)
+    pdf.cell(0, 10, f"アーチタイプ: {arch_type}", ln=True)
+    pdf.multi_cell(0, 10, f"説明: {arch_explains.get(arch_type, '')}")
+    pdf.cell(0, 10, f"脚の形状: {leg_shape}", ln=True)
+    pdf.multi_cell(0, 10, f"説明: {leg_explains.get(leg_shape, '')}")
+    pdf.cell(0, 10, f"推奨インソール番号: {insole_number}", ln=True)
+    
+    if image_path:
+        pdf.image(image_path, x=10, y=pdf.get_y(), w=100)
+
+    output_path = "insole_report.pdf"
+    pdf.output(output_path)
+    return output_path
+
+# Streamlit UI
 def main():
-    st.title("🦶 インソール提案アプリ")
+    st.title("🦶 インソール提案＆PDF出力アプリ")
 
-    st.markdown("足圧画像と目視チェックに基づいて、適切なインソール番号を自動提案します。")
-
-    # 外反母趾チェック
     hallux_valgus = st.checkbox("👣 外反母趾がある")
-
-    # 脚の形状選択
     leg_shape = st.radio("🦵 脚の形状", ["O脚", "X脚", "正常"])
 
-    # 足圧画像アップロード
     uploaded_file = st.file_uploader("🖼 足圧画像をアップロード", type=["png", "jpg", "jpeg"])
     if uploaded_file:
         image = Image.open(uploaded_file)
+        image_path = uploaded_file.name
+        image.save(image_path)
         image_cv = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
         st.image(image, caption="アップロード画像", use_column_width=True)
 
-        # アーチ分類
-        if hallux_valgus:
-            arch_type = "外反母趾"
-        else:
-            arch_type = classify_arch_by_image(image_cv)
-
+        arch_type = "外反母趾" if hallux_valgus else classify_arch_by_image(image_cv)
         pattern_key = (arch_type, leg_shape)
-        if pattern_key in pattern_table:
-            insole_number = pattern_table[pattern_key]
-            st.success(f"🟢 推奨インソール番号：**{insole_number}**")
-        else:
-            st.warning("該当するインソール番号が見つかりませんでした。")
+        insole_number = pattern_table.get(pattern_key, "該当なし")
 
-        # 説明表示
-        st.subheader("📝 足の形状の説明")
-        st.info(arch_explains.get(arch_type, "情報なし"))
+        st.success(f"🟢 推奨インソール番号：**{insole_number}**")
+        st.markdown("### 📝 アーチ説明")
+        st.info(arch_explains.get(arch_type, ""))
+        st.markdown("### 📝 脚の形状説明")
+        st.info(leg_explains.get(leg_shape, ""))
 
-        st.subheader("📝 脚の形状の説明")
-        st.info(leg_explains.get(leg_shape, "情報なし"))
+        if st.button("📄 PDF生成"):
+            pdf_path = create_pdf(image_path, arch_type, leg_shape, insole_number)
+            with open(pdf_path, "rb") as f:
+                b64 = base64.b64encode(f.read()).decode()
+                href = f'<a href="data:application/pdf;base64,{b64}" download="insole_report.pdf">📥 PDFをダウンロード</a>'
+                st.markdown(href, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
